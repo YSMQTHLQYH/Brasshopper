@@ -38,7 +38,8 @@ void* ArenaAlloc(_sArena* arena, size_t size, size_t align) {
 
 	//check if it fits in this arena or we need to make next arena in chain
 	if ((arena->top + padding + size) > arena->capacity) {
-		arena->next = ArenaNew(arena->capacity);
+		//arena->capacity is the actual memory allocated, the argument is the minimun usable required (after the header takes it piece)
+		arena->next = ArenaNew(arena->capacity - ARENA_HEADER_SIZE); 
 		return ArenaAlloc(arena->next, size, align);
 	}
 
@@ -117,6 +118,7 @@ static _sArena* ArenaCreate(size_t capacity) {
 	size_t page_size = SDL_GetSystemPageSize();
 	if (page_size == 0) page_size = KiB(4);
 
+	capacity += ARENA_HEADER_SIZE;
 	size_t mod = capacity % page_size;
 	if (mod != 0) {
 		capacity -= mod;

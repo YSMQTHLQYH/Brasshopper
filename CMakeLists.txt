@@ -22,11 +22,6 @@ endif()
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_definitions(DEBUG)
 endif()
-if(MSVC)
-#MSVC is very stoopid and gives compiler warnings for null pointer on ASSERT(ptr != NULL)
-#It DOESN'T give the warning without the assert btw, it straight up encourages not using asserts??
-    add_compile_options(/wd6011)
-endif()
 
 
 project("core")
