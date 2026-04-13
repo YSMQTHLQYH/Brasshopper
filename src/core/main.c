@@ -11,6 +11,7 @@ __pragma(warning(suppress: 6011))
 
 
 #include "arena.h"
+#include "dynamic_array.h"
 
 /* We will use this renderer to draw into this window every frame. */
 static SDL_Window *window = NULL;
@@ -33,6 +34,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
     SDL_SetRenderLogicalPresentation(renderer, 640, 480, SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
     ArenaRunTests();
+    DynamicArrayRunTests();
 
     return SDL_APP_CONTINUE;  /* carry on with the program! */
 }

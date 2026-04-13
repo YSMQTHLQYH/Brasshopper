@@ -35,6 +35,9 @@ enum {
 _sDynamicArray* DArrayNew(Uint32 item_size, Uint32 reserve_count, Uint32 flags);
 void DArrayFree(_sDynamicArray* darray);
 
+// returns pointer to "darray[i]"
+#define DARRAY(darray, i, type) (type*)( (size_t)darray->data + (i * sizeof(type) ) )
+
 /*
 * Appends item(s) to the end of the dynamic array, reallocating if necessary
 * item_ptr is a pointer to the item to append (or array of items if multiple)
@@ -74,3 +77,6 @@ void DArrayRemoveOrdered(_sDynamicArray* darray, Uint32 index);
 * index is index of the item to be deleted (ei my_da[index])
 */
 void DArrayRemoveUnordered(_sDynamicArray* darray, Uint32 index);
+
+
+void DynamicArrayRunTests();

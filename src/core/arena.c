@@ -43,7 +43,7 @@ void* ArenaAlloc(_sArena* arena, size_t size, size_t align) {
 		return ArenaAlloc(arena->next, size, align);
 	}
 
-	void* ret = arena + arena->top + padding;
+	void* ret = (Uint8*)arena + arena->top + padding;
 	arena->top += size + padding;
 
 	return ret;

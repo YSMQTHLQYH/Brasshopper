@@ -5,9 +5,9 @@ _sDynamicArray* DArrayNew(Uint32 item_size, Uint32 reserve_count, Uint32 flags) 
 	SDL_assert(reserve_count != 0);
 	SDL_assert((flags & (DARRAY_FLAG_ORDERED | DARRAY_FLAG_UNORDERED)) != 0);
 
-	_sArena* arena = ArenaNew(reserve_count * item_size);
+	_sArena* arena = ArenaNew((size_t)(reserve_count * item_size));
 	_sDynamicArray* darray = ArenaAlloc(arena, DYNAMIC_ARRAY_HEADER_SIZE, alignof(_sDynamicArray));
-	darray->data = arena->top;
+	darray->data = (Uint8*)arena + arena->top;
 	darray->arena = arena;
 	darray->count = 0;
 	darray->item_size = item_size;
@@ -23,6 +23,10 @@ void DArrayFree(_sDynamicArray* darray) {
 	ArenaFree(darray->arena);
 }
 
+static void DArraySetArenaTop(_sDynamicArray* darray) {
+	darray->arena->top = (darray->count * darray->item_size) + ARENA_HEADER_SIZE + DYNAMIC_ARRAY_HEADER_SIZE;
+}
+
 static _sDynamicArray* DArrayGrow(_sDynamicArray* darray) {
 	SDL_assert(darray != NULL);
 	Uint32 new_capacity = darray->capacity + (darray->capacity >> 1);
@@ -30,19 +34,24 @@ static _sDynamicArray* DArrayGrow(_sDynamicArray* darray) {
 	SDL_memcpy(new_darray->data, darray->data, darray->count * darray->item_size);
 	new_darray->count = darray->count;
 	SDL_assert(new_darray->capacity > darray->capacity);
+	new_darray->arena->top = darray->arena->top;
 	DArrayFree(darray);
 	return new_darray;
 }
 
-_sDynamicArray* DArrayAppend(_sDynamicArray* darray, void* item_ptr, Uint32 count) {
+_sDynamicArray* DArrayAppend(_sDynamicArray* darray, const void* item_ptr, Uint32 count) {
 	SDL_assert(darray != NULL);
-	if (count == 0)return;
-	while (darray->count + count > darray->capacity) {
+	if (count == 0) return darray;
+	if (darray->count + 1 > darray->capacity) {
 		darray = DArrayGrow(darray);
 	}
-	void* end = (Uint8*)darray->data + (darray->count * darray->item_size);
-	SDL_memcpy(end, item_ptr, (size_t)(count * darray->item_size));
+
+	size_t size = darray->item_size * count;
+	void* append_ptr = (Uint8*)darray->arena + darray->arena->top;
+	SDL_memcpy(append_ptr, item_ptr, size);
 	darray->count += count;
+	DArraySetArenaTop(darray);
+
 	return darray;
 }
 
@@ -55,6 +64,7 @@ void DArrayRemoveLast(_sDynamicArray* darray, Uint32 count) {
 	else {
 		darray->count -= count;
 	}
+	DArraySetArenaTop(darray);
 }
 
 _sDynamicArray* DArrayInsert(_sDynamicArray* darray, void* item_ptr, Uint32 index) {
@@ -71,6 +81,7 @@ _sDynamicArray* DArrayInsert(_sDynamicArray* darray, void* item_ptr, Uint32 inde
 	SDL_memmove(copy_dst, insert_dst, (darray->count - index) * darray->item_size);
 	SDL_memcpy(insert_dst, item_ptr, darray->item_size);
 	darray->count++;
+	DArraySetArenaTop(darray);
 	return darray;
 }
 
@@ -82,6 +93,7 @@ void DArrayRemoveOrdered(_sDynamicArray* darray, Uint32 index) {
 	void* remove_dst = (Uint8*)darray->data + (index * darray->item_size);
 	darray->count--;
 	SDL_memmove(remove_dst, copy_src, (darray->count - index) * darray->item_size);
+	DArraySetArenaTop(darray);
 }
 
 void DArrayRemoveUnordered(_sDynamicArray* darray, Uint32 index) {
@@ -91,4 +103,58 @@ void DArrayRemoveUnordered(_sDynamicArray* darray, Uint32 index) {
 	void* last = (Uint8*)darray->data + (--darray->count * darray->item_size);
 	void* remove_dst = (Uint8*)darray->data + (index * darray->item_size);
 	SDL_memcpy(remove_dst, last, darray->item_size);
+	DArraySetArenaTop(darray);
+}
+
+void DynamicArrayRunTests() {
+	_sDynamicArray* darray = DArrayNew(sizeof(Uint32), 100, DARRAY_FLAG_ORDERED);
+	for (Uint32 i = 0; i < 100; i++) {
+		DArrayAppend(darray, &i, 1);
+	}
+	SDL_Log("cap %i, count %i", darray->capacity, darray->count);
+	SDL_Log("int 45: %i", *DARRAY(darray, 45, Uint32));
+
+	DArrayRemoveOrdered(darray, 45);
+	SDL_assert(*DARRAY(darray, 45, Uint32) == 46);
+
+	DArrayRemoveOrdered(darray, 0);
+
+	Uint32 arr[10] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+	DArrayInsert(darray, &arr[1], 30);
+	SDL_Log("cap %i, count %i", darray->capacity, darray->count);
+	SDL_Log("int 30: %i", *DARRAY(darray, 30, Uint32));
+	SDL_assert(*DARRAY(darray, 30, Uint32) == 1);
+
+	Uint32 cap = darray->capacity;
+	SDL_Log("cap %i, count %i", darray->capacity, darray->count);
+	for (Uint32 i = 0; i < cap; i++) {
+		darray = DArrayAppend(darray, arr, 10);
+	}
+	SDL_Log("cap %i, count %i", darray->capacity, darray->count);
+
+	DArrayFree(darray);
+
+	Uint64 arr2[12] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
+	darray = DArrayNew(sizeof(Uint64), 100, DARRAY_FLAG_UNORDERED);
+	cap = darray->capacity;
+	SDL_Log("cap %i, count %i", darray->capacity, darray->count);
+	for (Uint32 i = 0; i < cap; i++) {
+		darray = DArrayAppend(darray, arr2, 12);
+	}
+	SDL_Log("cap %i, count %i", darray->capacity, darray->count);
+	Uint32 end = darray->count;
+	Uint64 num = *DARRAY(darray, end - 1, Uint64);
+	Uint32 count = darray->count;
+	SDL_assert(num == 11);
+	DArrayRemoveUnordered(darray, 1234);
+	num = *DARRAY(darray, 1234, Uint64);
+	SDL_assert(num == 11);
+	num = *DARRAY(darray, end - 2, Uint64);
+	SDL_assert(num == 10);
+	DArrayRemoveUnordered(darray, 999);
+	num = *DARRAY(darray, 999, Uint64);
+	SDL_assert(num == 10);
+	num = *DARRAY(darray, end - 3, Uint64);
+	SDL_assert(num == 9);
+	SDL_assert(darray->count == count - 2);
 }
