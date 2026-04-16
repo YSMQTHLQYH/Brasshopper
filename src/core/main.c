@@ -9,15 +9,19 @@ __pragma(warning(suppress: 6011))
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
-
 #include "arena.h"
 #include "dynamic_array.h"
 
-/* We will use this renderer to draw into this window every frame. */
+#include "nuklear_sdl.h"
+
+
+
 static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
 
-/* This function runs once at startup. */
+static _sNkContextSdl* nk_ctx = NULL;
+
+
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 {
     SDL_SetAppMetadata("Example Renderer Clear", "1.0", "com.example.renderer-clear");
@@ -35,6 +39,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 
     ArenaRunTests();
     DynamicArrayRunTests();
+    
+    nk_ctx = NkContextSdlInit(renderer, KiB(64));
 
     return SDL_APP_CONTINUE;  /* carry on with the program! */
 }
