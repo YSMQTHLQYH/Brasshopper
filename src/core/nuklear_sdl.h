@@ -25,4 +25,7 @@ Frees a nuklear context with it's own fixed memory inside it's own arena, freein
 */
 void NkContextSdlFree(_sNkContextSdl* nk);
 
+
+void NkContextSdlDraw(_sNkContextSdl* nk);
+
 void NkTestTick(_sNkContextSdl* nk);

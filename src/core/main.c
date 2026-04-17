@@ -67,6 +67,9 @@ SDL_AppResult SDL_AppIterate(void *appstate)
     /* clear the window to the draw color. */
     SDL_RenderClear(renderer);
 
+    NkTestTick(nk_ctx);
+    NkContextSdlDraw(nk_ctx);
+
     /* put the newly-cleared rendering on the screen. */
     SDL_RenderPresent(renderer);
 
