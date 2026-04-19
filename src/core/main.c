@@ -70,6 +70,9 @@ SDL_AppResult SDL_AppIterate(void *appstate)
     NkTestTick(nk_ctx);
     NkContextSdlDraw(nk_ctx);
 
+    SDL_FRect dst_rect = { 100, 300, nk_ctx->atlas_texture->w, nk_ctx->atlas_texture->h };
+    SDL_RenderTexture(renderer, nk_ctx->atlas_texture, NULL, &dst_rect);
+
     /* put the newly-cleared rendering on the screen. */
     SDL_RenderPresent(renderer);
 

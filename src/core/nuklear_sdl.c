@@ -30,7 +30,7 @@ static void BakeDefaultFont(_sNkContextSdl* nk) {
 
 	nk_font_atlas_init(&nk->atlas, &font_allocator);
 	nk_font_atlas_begin(&nk->atlas);
-	font = nk_font_atlas_add_default(&nk->atlas, 14, NULL);
+	font = nk_font_atlas_add_default(&nk->atlas, 16, NULL);
 	int w, h;
 	void* img = nk_font_atlas_bake(&nk->atlas, &w, &h, NK_FONT_ATLAS_RGBA32);
 
@@ -86,6 +86,9 @@ void NkContextSdlFree(_sNkContextSdl* nk) {
 	ArenaFree(nk->arena); //nk is stored inside the arena itself so this also frees that
 }
 
+
+
+
 // hardcoded for NkContextSdlDraw to not repeat code, not for general purposes
 static void CreateCircleVertices(SDL_FPoint* vertex, SDL_Rect rect) {
 	for (Uint8 i = 0; i < CIRCLE_VERTEX_COUNT; i++) {
@@ -101,6 +104,99 @@ static void CreateCircleVertices(SDL_FPoint* vertex, SDL_Rect rect) {
 		vertex[i].y = y;
 	}
 }
+
+// separated this one as it's own function for readability, full of comments basically ranting at the nonexistant documentation on this
+static void DrawTextCommand(_sNkContextSdl* nk, const struct nk_command_text* cmd) {
+	/* decoding */
+
+	// docs say absolutely nothing about how to actually render text from font baker...
+	// guessing my way through every single line of code until it works I suppose
+	//SDL_Log(cmd->string);
+	//SDL_Log("size: %f, scale %f", font->config->size, font->scale);
+	struct nk_font* font = cmd->font->userdata.ptr; // the docs doesn't even explain what a nk_handle is btw
+
+	// looking at source code, individual characters are stored as nk_rune, which is just allias for Uint...
+	// but the nk_command_text only has a plain old string... what
+
+	/*
+	int nk_utf_decode(const char *c, nk_rune *u, int clen);
+	only know about this function existing from looking at implementation of calculating text width...
+	not even a comment on what clen is for, let alone if this just decodes on char or an entire array
+	*/
+
+	// assuming it returns number of bytes read
+	int len = 0;
+	Uint32 count = 0;
+	nk_rune* unicode = SDL_stack_alloc(nk_rune, cmd->length);
+	while (len < cmd->length) {
+		len += nk_utf_decode(&cmd->string[len], &unicode[count++], cmd->length - len);
+		//SDL_Log("len %i", len);
+		// SDL_Log("rune?? %i, len: %i", unicode, len);
+		// alright it's working as I guessed this far
+	}
+
+
+	/* drawing background */
+	SDL_FRect bounding_box = { .x = cmd->x, .y = cmd->y, .w = cmd->w, .h = cmd->h };
+	SDL_SetRenderDrawColor(nk->renderer, cmd->background.r, cmd->background.g, cmd->background.b, cmd->background.a);
+	SDL_RenderFillRect(nk->renderer, &bounding_box);
+
+
+	/* drawing characters as individual textured quads */
+	const Uint8 indices[6] = {
+		0, 1, 2,
+		0, 2, 3
+	};
+	const SDL_FColor foreground_color = {
+		.r = (float)cmd->foreground.r / 256,
+		.g = (float)cmd->foreground.g / 256,
+		.b = (float)cmd->foreground.b / 256,
+		.a = (float)cmd->foreground.a / 256,
+	};
+	float advance = 0;
+	for (Uint32 i = 0; i < count; i++) {
+
+		// also a function from looking at source code, uncommented
+		struct nk_font_glyph* glyph = nk_font_find_glyph(font, unicode[i]);
+		/*
+		glyph struct has x0/x1/y0/y1, and w/h, and u0/u1/v0/v1...
+		I hope it's just redundant positions in texture atlas because idk what to do with all that
+		SDL_Log("x0: %f, x1: %f, w: %f", glyph->x0, glyph->x1, glyph->w);
+		SDL_Log("y0: %f, y1: %f, h: %f", glyph->y0, glyph->y1, glyph->h);
+		SDL_Log("u0: %f, u1: %f", glyph->u0, glyph->u1);
+		SDL_Log("v0: %f, v1: %f", glyph->v0, glyph->v1);
+		x0 + x1 seems to be always equal to w and so on, I can breathe in relief
+		nvm x and y are all in the top left corner, probably an offset inside character bounding box? edit: yup
+		*/
+
+		float x0 = bounding_box.x + advance, y0 = bounding_box.y + glyph->y0;
+		advance += glyph->xadvance - glyph->x0; // not sure if  - glyph->x0 goes here but this looks the least bad
+		SDL_FPoint xy[4] = {
+			{x0,			y0},
+			{x0 + glyph->w,	y0},
+			{x0 + glyph->w,	y0 + glyph->h},
+			{x0,			y0 + glyph->h}
+		};
+		SDL_FPoint uv[4] = {
+			{glyph->u0, glyph->v0},
+			{glyph->u1, glyph->v0},
+			{glyph->u1, glyph->v1},
+			{glyph->u0, glyph->v1}
+		};
+
+		SDL_RenderGeometryRaw(nk->renderer, nk->atlas_texture,
+			xy, sizeof(SDL_FPoint),
+			&foreground_color, 0,
+			uv, sizeof(SDL_FPoint),
+			4,
+			&indices, 6, 1);
+		//SDL_Log("char: %i", unicode[i]);
+		//SDL_Log("u0: %f, u1: %f, v0: %f, v1: % f", glyph->u0, glyph->u1, glyph->v0, glyph->v1);
+	}
+
+	SDL_stack_free(unicode);
+}
+
 
 void NkContextSdlDraw(_sNkContextSdl* nk) {
 	SDL_assert(nk != NULL);
@@ -187,12 +283,7 @@ void NkContextSdlDraw(_sNkContextSdl* nk) {
 		case NK_COMMAND_TEXT:
 		{
 			const struct nk_command_text* cmd = command;
-			SDL_FRect rect = { .x = cmd->x, .y = cmd->y, .w = cmd->w, .h = cmd->h };
-			SDL_SetRenderDrawColor(nk->renderer, cmd->background.r, cmd->background.g, cmd->background.b, cmd->background.a);
-			SDL_RenderFillRect(nk->renderer, &rect);
-
-			//docs say absolutely nothing about how to actually render text from font baker...
-			SDL_Log(cmd->string);
+			DrawTextCommand(nk, cmd);
 		}
 		break;
 		default:
