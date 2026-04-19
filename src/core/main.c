@@ -51,6 +51,15 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
     if (event->type == SDL_EVENT_QUIT) {
         return SDL_APP_SUCCESS;  /* end the program, reporting success to the OS. */
     }
+
+    /* report event to nuklear */
+    if (nk_ctx != NULL) {
+        /* Remember to always rescale the event coordinates,
+        * if your renderer uses custom scale. */
+        SDL_ConvertEventToRenderCoordinates(nk_ctx->renderer, event);
+        NkContextSdlRecordEvent(nk_ctx, event);
+    }
+
     return SDL_APP_CONTINUE;  /* carry on with the program! */
 }
 
@@ -67,11 +76,14 @@ SDL_AppResult SDL_AppIterate(void *appstate)
     /* clear the window to the draw color. */
     SDL_RenderClear(renderer);
 
+
+    nk_input_end(&nk_ctx->ctx);
     NkTestTick(nk_ctx);
     NkContextSdlDraw(nk_ctx);
+    nk_input_begin(&nk_ctx->ctx);
 
     SDL_FRect dst_rect = { 100, 300, nk_ctx->atlas_texture->w, nk_ctx->atlas_texture->h };
-    SDL_RenderTexture(renderer, nk_ctx->atlas_texture, NULL, &dst_rect);
+    SDL_RenderTexture(nk_ctx->renderer, nk_ctx->atlas_texture, NULL, &dst_rect);
 
     /* put the newly-cleared rendering on the screen. */
     SDL_RenderPresent(renderer);
@@ -82,6 +94,7 @@ SDL_AppResult SDL_AppIterate(void *appstate)
 /* This function runs once at shutdown. */
 void SDL_AppQuit(void *appstate, SDL_AppResult result)
 {
+    NkContextSdlFree(nk_ctx);
     /* SDL will clean up the window/renderer for us. */
 }
 

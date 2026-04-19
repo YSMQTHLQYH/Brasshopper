@@ -12,6 +12,10 @@ typedef struct {
 	SDL_Texture* atlas_texture;
 	struct nk_context ctx;
 	struct nk_font_atlas atlas;
+	struct {
+		Uint64 last_left_click_ns;
+		Uint8 insert_toggle : 1;
+	} input_state;
 }_sNkContextSdl;
 
 /*
@@ -25,6 +29,12 @@ Frees a nuklear context with it's own fixed memory inside it's own arena, freein
 */
 void NkContextSdlFree(_sNkContextSdl* nk);
 
+
+/*
+returns true if it did something with the event
+returns false if the event was something unrelated to gui
+*/
+Uint8 NkContextSdlRecordEvent(_sNkContextSdl* nk, SDL_Event* event);
 
 void NkContextSdlDraw(_sNkContextSdl* nk);
 
