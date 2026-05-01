@@ -33,6 +33,7 @@ enum {
 * retruns pointer to the new dynamic array
 */
 _sDynamicArray* DArrayNew(Uint32 item_size, Uint32 reserve_count, Uint32 flags);
+// frees the entire dynamic array
 void DArrayFree(_sDynamicArray* darray);
 
 // returns pointer to "darray[i]"

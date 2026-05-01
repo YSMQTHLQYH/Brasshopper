@@ -17,6 +17,7 @@ typedef struct {
 		Uint8 insert_toggle : 1;
 	} input_state;
 }_sNkContextSdl;
+extern _sNkContextSdl* nk_sdl;
 
 /*
 Inits a nuklear context with it's own fixed memory inside it's own arena

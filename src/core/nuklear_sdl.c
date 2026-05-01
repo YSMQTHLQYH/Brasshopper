@@ -6,22 +6,26 @@
 #define CIRCLE_VERTEX_COUNT	8
 #define CIRCLE_INDEX_COUNT	((CIRCLE_VERTEX_COUNT - 2) * 3)
 
+//global nk context, we only need one really
+_sNkContextSdl* nk_sdl;
+
 struct nk_font* font = NULL;
 
 /* TODO: make a proper allocator for this? */
+static Uint32 font_alloc_count = 0;
 static void* font_alloc(nk_handle userdata, void* old, nk_size size) {
 	if (old == NULL) {
-		SDL_Log("allocating %i bytes for font baking", size);
+		SDL_Log("allocating %i bytes for font baking, allocation count: %i", size, ++font_alloc_count);
 		return SDL_malloc(size);
 	}
-	SDL_Log("reallocating %i bytes for font baking", size);
+	SDL_Log("reallocating %i bytes for font baking, allocation count: %i", size, ++font_alloc_count);
 	return SDL_realloc(old, size);
 }
 static void font_free(nk_handle userdata, void* old) {
 	if (old == NULL) {
 		return;
 	}
-	SDL_Log("freeing some bytes from font baking");
+	SDL_Log("freeing some bytes from font baking, allocation count: %i", --font_alloc_count);
 	SDL_free(old);
 }
 struct nk_allocator font_allocator = { 0 };
@@ -320,7 +324,7 @@ void NkContextSdlDraw(_sNkContextSdl* nk) {
 			vertex[CIRCLE_VERTEX_COUNT].y = vertex[0].y;
 			//TODO: figure out line_thickness
 			SDL_SetRenderDrawColor(nk->renderer, cmd->color.r, cmd->color.g, cmd->color.b, cmd->color.a);
-			SDL_RenderLines(nk->renderer, &vertex, CIRCLE_VERTEX_COUNT + 1);
+			SDL_RenderLines(nk->renderer, vertex, CIRCLE_VERTEX_COUNT + 1);
 		}
 		break;
 		case NK_COMMAND_CIRCLE_FILLED:
@@ -346,10 +350,63 @@ void NkContextSdlDraw(_sNkContextSdl* nk) {
 				&index, CIRCLE_INDEX_COUNT, 1);
 		}
 		break;
+		case NK_COMMAND_TRIANGLE:
+		{
+			const struct nk_command_triangle* cmd = command;
+			//TODO: figure out line_thickness
+			SDL_SetRenderDrawColor(nk->renderer, cmd->color.r, cmd->color.g, cmd->color.b, cmd->color.a);
+			SDL_FPoint points[4] = {
+				{.x = (float)cmd->a.x, .y = (float)cmd->a.y},
+				{.x = (float)cmd->b.x, .y = (float)cmd->b.y},
+				{.x = (float)cmd->c.x, .y = (float)cmd->c.y},
+				{.x = (float)cmd->a.x, .y = (float)cmd->a.y},
+			};
+			SDL_RenderLines(nk->renderer, points, 4);
+		}
+		break;
+		case NK_COMMAND_TRIANGLE_FILLED:
+		{
+			const struct nk_command_triangle_filled* cmd = command;
+			const SDL_FPoint xy[3] = {
+				{.x = (float)cmd->a.x, .y = (float)cmd->a.y},
+				{.x = (float)cmd->b.x, .y = (float)cmd->b.y},
+				{.x = (float)cmd->c.x, .y = (float)cmd->c.y},
+			};
+			const SDL_FColor color = FColorFromUint8RGBA(&cmd->color);
+			SDL_RenderGeometryRaw(
+				nk->renderer, NULL,
+				xy, sizeof(SDL_FPoint),
+				&color, 0,
+				NULL, 0,
+				3,
+				NULL, 0, 1
+			);
+		}
+		break;
 		case NK_COMMAND_TEXT:
 		{
 			const struct nk_command_text* cmd = command;
 			DrawTextCommand(nk, cmd);
+		}
+		break;
+		case NK_COMMAND_IMAGE:
+		{
+			const struct nk_command_image* cmd = command;
+			const SDL_FRect src = {
+				.x = (float)cmd->img.region[0],
+				.y = (float)cmd->img.region[1],
+				.w = (float)cmd->img.region[2],
+				.h = (float)cmd->img.region[3],
+			};
+			// lmao it's just called region[4], absolutely nothing says in what order to read them
+			// i suppose it's up to implementation as I'm both reading and writting this
+			const SDL_FRect dst = {
+				.x = (float)cmd->x,
+				.y = (float)cmd->y,
+				.w = (float)cmd->w,
+				.h = (float)cmd->h,
+			};
+			SDL_RenderTexture(nk->renderer, (SDL_Texture*)cmd->img.handle.ptr, &src, &dst);
 		}
 		break;
 		default:
@@ -417,7 +474,7 @@ static void DrawTextCommand(_sNkContextSdl* nk, const struct nk_command_text* cm
 	/* drawing characters as individual textured quads */
 	const Uint8 indices[6] = {
 		0, 1, 2,
-		0, 2, 3
+		2, 3, 0
 	};
 	const SDL_FColor foreground_color = FColorFromUint8RGBA(&cmd->foreground);
 	float advance = 0;
@@ -472,13 +529,18 @@ void NkTestTick(_sNkContextSdl* nk) {
 	static float value = 0.6f;
 	static int i = 20;
 
-	if (nk_begin(&nk->ctx, "Show", nk_rect(50, 50, 220, 220),
+	if (nk_begin(&nk->ctx, "Show", nk_rect(50, 50, 250, 220),
 		NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_CLOSABLE)) {
 		// fixed widget pixel width
-		nk_layout_row_static(&nk->ctx, 30, 80, 1);
+		nk_layout_row_static(&nk->ctx, 30, 80, 2);
 		if (nk_button_label(&nk->ctx, "button")) {
 			// event handling
 			SDL_Log("button pressed");
+		}
+		if (nk_button_label(&nk->ctx, "close app")) {
+			SDL_Event quit = { 0 };
+			quit.type = SDL_EVENT_QUIT;
+			SDL_PushEvent(&quit);
 		}
 
 		// fixed widget window ratio width
@@ -495,6 +557,23 @@ void NkTestTick(_sNkContextSdl* nk) {
 			nk_slider_float(&nk->ctx, 0, &value, 1.0f, 0.1f);
 		}
 		nk_layout_row_end(&nk->ctx);
+	}
+	nk_end(&nk->ctx);
+
+	if (nk_begin(&nk->ctx, "Show2", nk_rect(300, 50, 220, 220),
+		NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_CLOSABLE | NK_WINDOW_SCALABLE)) {
+
+		float w, h;
+		SDL_GetTextureSize(nk->atlas_texture, &w, &h);
+		nk_layout_row_static(&nk->ctx, h, (int)w, 1);
+		// documentation doesn't even have a list of widgets available, great
+		struct nk_image img = {
+			.handle.ptr = nk->atlas_texture,
+			.w = (Uint16)w,
+			.h = (Uint16)h,
+			.region = {0, 0, (Uint16)w, (Uint16)h}
+		};
+		nk_image(&nk->ctx, img);
 	}
 	nk_end(&nk->ctx);
 }

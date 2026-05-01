@@ -42,7 +42,7 @@ static _sDynamicArray* DArrayGrow(_sDynamicArray* darray) {
 _sDynamicArray* DArrayAppend(_sDynamicArray* darray, const void* item_ptr, Uint32 count) {
 	SDL_assert(darray != NULL);
 	if (count == 0) return darray;
-	if (darray->count + 1 > darray->capacity) {
+	if (darray->count + count > darray->capacity) {
 		darray = DArrayGrow(darray);
 	}
 
