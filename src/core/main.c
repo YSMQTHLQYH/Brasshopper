@@ -11,6 +11,7 @@ __pragma(warning(suppress: 6011))
 
 #include "arena.h"
 #include "dynamic_array.h"
+#include "queue.h"
 
 #include "nuklear_sdl.h"
 
@@ -36,8 +37,15 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
     }
     SDL_SetRenderLogicalPresentation(renderer, 640, 480, SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
+    SDL_Log("tests start");
+    SDL_Log("arena tests");
     ArenaRunTests();
+    SDL_Log("dynamic array tests");
     DynamicArrayRunTests();
+    SDL_Log("queue tests");
+    QueueRunTests();
+    SDL_Log("tests end");
+
     
     nk_sdl = NkContextSdlInit(renderer, KiB(64));
 
@@ -101,10 +109,12 @@ SDL_AppResult SDL_AppIterate(void *appstate){
 
 
     /* nuklear gui */
-    nk_input_end(&nk_sdl->ctx);
-    NkTestTick(nk_sdl);
-    nk_input_begin(&nk_sdl->ctx);
-    NkContextSdlDraw(nk_sdl);
+    if (nk_sdl != NULL) {
+        nk_input_end(&nk_sdl->ctx);
+        NkTestTick(nk_sdl);
+        nk_input_begin(&nk_sdl->ctx);
+        NkContextSdlDraw(nk_sdl);
+    }
 
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0xA0);
@@ -120,7 +130,7 @@ SDL_AppResult SDL_AppIterate(void *appstate){
 /* This function runs once at shutdown. */
 void SDL_AppQuit(void *appstate, SDL_AppResult result)
 {
-    NkContextSdlFree(nk_sdl);
+    //NkContextSdlFree(nk_sdl);
     /* SDL will clean up the window/renderer for us. */
 }
 

@@ -41,11 +41,11 @@ void DArrayFree(_sDynamicArray* darray);
 
 /*
 * Appends item(s) to the end of the dynamic array, reallocating if necessary
+* address changes if array had to be reallocated, so it takes a pointer to the pointer to dynamic array
 * item_ptr is a pointer to the item to append (or array of items if multiple)
 * count is number of items to append
-* returns pointer to dynamic array (changes if array had to be reallocated)
 */
-_sDynamicArray* DArrayAppend(_sDynamicArray* darray, void* item_ptr, Uint32 count);
+void DArrayAppend(_sDynamicArray** darray_ptr, void* item_ptr, Uint32 count);
 
 /*
 * Removes items starting from the end of the dynamic array
@@ -55,12 +55,12 @@ void DArrayRemoveLast(_sDynamicArray* darray, Uint32 count);
 /*
 * Inserts an item at a specific index in the middle of dynamic array
 * This moves all items after that index, note that it is relatively expensive
+* * address changes if array had to be reallocated, so it takes a pointer to the pointer to dynamic array
 * If you don't need the dynamic array to be ordered use DArrayAppend() instead
 * item_ptr is a pointer to the item to append
 * index is index where item inserted will be at (so my_da[index] will be the new item)
-* * returns pointer to dynamic array (changes if array had to be reallocated)
 */
-_sDynamicArray* DArrayInsert(_sDynamicArray* darray, void* item_ptr, Uint32 index);
+void DArrayInsert(_sDynamicArray** darray_ptr, void* item_ptr, Uint32 index);
 
 /*
 * Removes an item at a specific index in the middle of dynamic array

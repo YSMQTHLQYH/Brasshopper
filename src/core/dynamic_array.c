@@ -39,11 +39,14 @@ static _sDynamicArray* DArrayGrow(_sDynamicArray* darray) {
 	return new_darray;
 }
 
-_sDynamicArray* DArrayAppend(_sDynamicArray* darray, const void* item_ptr, Uint32 count) {
-	SDL_assert(darray != NULL);
+void DArrayAppend(_sDynamicArray** darray_ptr, const void* item_ptr, Uint32 count) {
+	SDL_assert(darray_ptr != NULL);
+	SDL_assert(*darray_ptr != NULL); // This takes a pointer to a pointer, as address of the dynamic array might change
+	_sDynamicArray* darray = *darray_ptr;
 	if (count == 0) return darray;
 	if (darray->count + count > darray->capacity) {
 		darray = DArrayGrow(darray);
+		*darray_ptr = darray;
 	}
 
 	size_t size = darray->item_size * count;
@@ -51,8 +54,6 @@ _sDynamicArray* DArrayAppend(_sDynamicArray* darray, const void* item_ptr, Uint3
 	SDL_memcpy(append_ptr, item_ptr, size);
 	darray->count += count;
 	DArraySetArenaTop(darray);
-
-	return darray;
 }
 
 
@@ -67,14 +68,17 @@ void DArrayRemoveLast(_sDynamicArray* darray, Uint32 count) {
 	DArraySetArenaTop(darray);
 }
 
-_sDynamicArray* DArrayInsert(_sDynamicArray* darray, void* item_ptr, Uint32 index) {
-	SDL_assert(darray != NULL);
+void DArrayInsert(_sDynamicArray** darray_ptr, void* item_ptr, Uint32 index) {
+	SDL_assert(darray_ptr != NULL);
+	SDL_assert(*darray_ptr != NULL); // This takes a pointer to a pointer, as address of the dynamic array might change
+	_sDynamicArray* darray = *darray_ptr;
 	SDL_assert(index <= darray->count);
 	if (darray->count + 1 > darray->capacity) {
 		// ideally we would do a grow_without_copy function, copy part before insersion, insert and then copy the rest
 		// saves copying twice, but we probably won't be on that stuation often
 		// i'll implement that if this becomes a problem
 		darray = DArrayGrow(darray);
+		*darray_ptr = darray;
 	}
 	void* copy_dst = (Uint8*)darray->data + ((index + 1) * darray->item_size);
 	void* insert_dst = (Uint8*)darray->data + (index * darray->item_size);
@@ -108,11 +112,13 @@ void DArrayRemoveUnordered(_sDynamicArray* darray, Uint32 index) {
 
 void DynamicArrayRunTests() {
 	_sDynamicArray* darray = DArrayNew(sizeof(Uint32), 100, DARRAY_FLAG_ORDERED);
+	_sDynamicArray* old_addr = darray;
 	for (Uint32 i = 0; i < 100; i++) {
-		DArrayAppend(darray, &i, 1);
+		DArrayAppend(&darray, &i, 1);
 	}
-	SDL_Log("cap %i, count %i", darray->capacity, darray->count);
-	SDL_Log("int 45: %i", *DARRAY(darray, 45, Uint32));
+	SDL_assert(darray == old_addr);
+	//SDL_Log("cap %i, count %i", darray->capacity, darray->count);
+	//SDL_Log("int 45: %i", *DARRAY(darray, 45, Uint32));
 
 	DArrayRemoveOrdered(darray, 45);
 	SDL_assert(*DARRAY(darray, 45, Uint32) == 46);
@@ -120,28 +126,32 @@ void DynamicArrayRunTests() {
 	DArrayRemoveOrdered(darray, 0);
 
 	Uint32 arr[10] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-	DArrayInsert(darray, &arr[1], 30);
-	SDL_Log("cap %i, count %i", darray->capacity, darray->count);
-	SDL_Log("int 30: %i", *DARRAY(darray, 30, Uint32));
+	DArrayInsert(&darray, &arr[1], 30);
+	SDL_assert(darray == old_addr);
+	//SDL_Log("cap %i, count %i", darray->capacity, darray->count);
+	//SDL_Log("int 30: %i", *DARRAY(darray, 30, Uint32));
 	SDL_assert(*DARRAY(darray, 30, Uint32) == 1);
 
 	Uint32 cap = darray->capacity;
-	SDL_Log("cap %i, count %i", darray->capacity, darray->count);
+	//SDL_Log("cap %i, count %i", darray->capacity, darray->count);
 	for (Uint32 i = 0; i < cap; i++) {
-		darray = DArrayAppend(darray, arr, 10);
+		DArrayAppend(&darray, arr, 10);
 	}
-	SDL_Log("cap %i, count %i", darray->capacity, darray->count);
+	SDL_assert(darray != old_addr);
+	//SDL_Log("cap %i, count %i", darray->capacity, darray->count);
 
 	DArrayFree(darray);
 
 	Uint64 arr2[12] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
 	darray = DArrayNew(sizeof(Uint64), 100, DARRAY_FLAG_UNORDERED);
+	old_addr = darray;
 	cap = darray->capacity;
-	SDL_Log("cap %i, count %i", darray->capacity, darray->count);
+	//SDL_Log("cap %i, count %i", darray->capacity, darray->count);
 	for (Uint32 i = 0; i < cap; i++) {
-		darray = DArrayAppend(darray, arr2, 12);
+		DArrayAppend(&darray, arr2, 12);
 	}
-	SDL_Log("cap %i, count %i", darray->capacity, darray->count);
+	SDL_assert(darray != old_addr);
+	//SDL_Log("cap %i, count %i", darray->capacity, darray->count);
 	Uint32 end = darray->count;
 	Uint64 num = *DARRAY(darray, end - 1, Uint64);
 	Uint32 count = darray->count;

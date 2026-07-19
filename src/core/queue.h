@@ -36,13 +36,14 @@ void QueueFree(_sQueue* q);
 
 
 /*
+* Takes a *pointer* to the pointer of the queue
 * Adds item(s) to the start/end of the queue, reallocating if necessary
+* If it realocates the queue it writes the new pointer to the variable passed (hence pointer to a pointer)
 * item_ptr is a pointer to the item to Adds(or array of items if multiple)
 * count is number of items to add
-* returns pointer to queue (changes if array had to be reallocated)
 */
-_sQueue* QueuePushFront(_sQueue* q, void* item_ptr, Uint32 count);
-_sQueue* QueuePushBack(_sQueue* q, void* item_ptr, Uint32 count);
+void QueuePushFront(_sQueue** q_ptr, void* item_ptr, Uint32 count);
+void QueuePushBack(_sQueue** q_ptr, void* item_ptr, Uint32 count);
 
 /*
 * Removes an item from the start/end of the queue
@@ -53,7 +54,8 @@ void QueuePopFront(_sQueue* q);
 void QueuePopBack(_sQueue* q);
 
 // returns pointer to front/back item
-#define QUEUE_FRONT(q)	((Uint8*)q->data + (q->front * q->item_size))
-#define QUEUE_BACK(q)	((Uint8*)q->data + (q->back* q->item_size))
+#define QUEUE_FRONT(q, T)	(T*)((Uint8*)q->data + (q->front * q->item_size))
+#define QUEUE_BACK(q, T)	(T*)((Uint8*)q->data + (q->back * q->item_size))
 
 
+void QueueRunTests();
